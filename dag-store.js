@@ -1,7 +1,31 @@
-import {combineReducers, createStore, applyMiddleware, compose} from 'redux';
+import {
+  combineReducers,
+  createStore,
+  applyMiddleware,
+  compose,
+  Store as ReduxStore,
+  Middleware as ReduxMiddleware
+} from 'redux';
 import uuid from 'node-uuid';
 
-let nodes = (state = [], action = {}) => {
+type NodeAction = {
+  type: string,
+  payload: {
+    label: string,
+    type: string,
+    nodeId: string | number,
+    style: string
+  }
+};
+
+type NodeState = {
+  id: string,
+  label: string,
+  type: string
+};
+
+
+let nodes = (state:Array<NodeState> = [], action:NodeAction = {}): Array<NodeState> => {
   switch(action.type) {
     case 'ADD-NODE':
       return [
@@ -26,7 +50,19 @@ let nodes = (state = [], action = {}) => {
       return state;
   }
 };
-const connections = (state = [], action = {}) => {
+
+type ConnectionState = {
+  from: string,
+  to: string
+};
+type ConnectionAction = {
+  type: string,
+  payload: {
+    connetions: Array<ConnectionState>
+  },
+  connection: ConnectionState
+};
+const connections = (state:Array<ConnectionState> = [], action:ConnectionAction = {}) => {
   switch(action.type) {
     case 'ADD-CONNECTIONS':
       return [
@@ -44,8 +80,12 @@ const connections = (state = [], action = {}) => {
       return state;
   }
 };
-
-const graph = (state = {}, action = {}) => {
+type GraphState = Object;
+type GraphAction = {
+  type: string,
+  payload: Object
+};
+const graph = (state:GraphState = {}, action:GraphAction = {}) => {
   switch(action.type) {
     case 'LOADING':
       return Object.assign({}, state, {loading: action.payload.loading});
@@ -63,8 +103,16 @@ const defaultReducersMap = () => {
     connections: [ (state = [], action = {}) => state ]
   }
 };
+type NodeReducerFnState = (state: Array<NodeState>, action: Object) => Array<NodeState>;
+type ConnectionReducerFnState = (state: Array<ConnectionState>, action: Object) => Array<ConnectionState>;
+type GraphReducerFnState = (state: Array<GraphState>, action: Object) => Array<GraphState>;
+type ReducersMapType = {
+  nodes: Array<NodeReducerFnState>,
+  connections: Array<ConnectionReducerFnState>,
+  graph: Array<GraphReducerFnState>
+};
 
-let combinedReducers = function(reducersMap = defaultReducersMap()) {
+let combinedReducers = function(reducersMap:ReducersMapType = defaultReducersMap()) {
   let defaultValues = defaultReducersMap();
   const getReducer = (map, key, dValues) => {
     if (Array.isArray(map[key])) {
@@ -78,7 +126,11 @@ let combinedReducers = function(reducersMap = defaultReducersMap()) {
   let graphReducers = [graph].concat(getReducer(reducersMap, 'graph', defaultValues));
   let connectionsReducers = [connections].concat(getReducer(reducersMap, 'connections', defaultValues));
 
-  const genericReducerFn  = function(reducers, state, action) {
+  const genericReducerFn  = function(
+    reducers: Array<NodeReducerFnState | ConnectionReducerFnState | GraphReducerFnState>,
+    state: Array<NodeState> | Array<ConnectionState> | Array<GraphState>,
+    action: Object
+  ) {
     if(reducers.length > 1){
       return reducers
         .reduce((prev, curr) => curr.bind(null, prev(state, action), action))();
@@ -87,19 +139,31 @@ let combinedReducers = function(reducersMap = defaultReducersMap()) {
     }
   };
   return combineReducers({
-    nodes: (state, action) => {
+    nodes: (state: NodeState, action: NodeAction) => {
       return genericReducerFn(nodesReducers, state, action);
     },
-    connections: (state, action) => {
+    connections: (state: ConnectionState, action: ConnectionAction) => {
       return genericReducerFn(connectionsReducers, state, action);
     },
-    graph: (state, action) => {
+    graph: (state: GraphState, action: GraphAction) => {
       return genericReducerFn(graphReducers, state, action);
     }
   });
 };
 
-export function configureStore(data, reducersMap, middlewares = [], enhancers= []) {
+type StoreDataType = {
+  nodes: Array<NodeState>,
+  connections: Array<ConnectionState>,
+  graph: GraphState
+};
+
+
+export function configureStore(
+  data: StoreDataType,
+  reducersMap: ReducersMapType,
+  middlewares: Array<ReduxMiddleware> = [], 
+  enhancers= []
+): ReduxStore {
   let store = createStore(
     combinedReducers(reducersMap),
     data,
